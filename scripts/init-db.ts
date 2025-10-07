@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { query } from '@/lib/database'
 import fs from 'fs'
 import path from 'path'
