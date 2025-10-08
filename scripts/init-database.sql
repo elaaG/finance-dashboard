@@ -36,6 +36,54 @@ CREATE TABLE IF NOT EXISTS investments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+-- Users table
+CREATE TABLE IF NOT EXISTS users (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(255),
+    password VARCHAR(255),
+    email_verified TIMESTAMP WITH TIME ZONE,
+    image VARCHAR(500),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Accounts table (for OAuth)
+CREATE TABLE IF NOT EXISTS accounts (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(255) NOT NULL,
+    provider VARCHAR(255) NOT NULL,
+    provider_account_id VARCHAR(255) NOT NULL,
+    refresh_token TEXT,
+    access_token TEXT,
+    expires_at INTEGER,
+    token_type VARCHAR(255),
+    scope VARCHAR(255),
+    id_token TEXT,
+    session_state VARCHAR(255),
+    UNIQUE(provider, provider_account_id)
+);
+
+-- Sessions table
+CREATE TABLE IF NOT EXISTS sessions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires TIMESTAMP WITH TIME ZONE NOT NULL,
+    session_token VARCHAR(255) UNIQUE NOT NULL
+);
+
+-- Add user_id to existing tables
+ALTER TABLE transactions ADD COLUMN user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE budgets ADD COLUMN user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE investments ADD COLUMN user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_budgets_user_id ON budgets(user_id);
+CREATE INDEX IF NOT EXISTS idx_investments_user_id ON investments(user_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
 
 -- Insert sample data
 INSERT INTO budgets (category, amount) VALUES 
