@@ -1,15 +1,15 @@
-import NextAuth from 'next-auth'
-import CredentialsProvider from 'next-auth/providers/credentials'
-import { query } from '@/lib/database'
-import bcrypt from 'bcryptjs'
+// src/lib/auth.ts
+import CredentialsProvider from "next-auth/providers/credentials"
+import { query } from "@/lib/database"
+import bcrypt from "bcryptjs"
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const authOptions = {
   providers: [
     CredentialsProvider({
-      name: 'credentials',
+      name: "credentials",
       credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' }
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -17,27 +17,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         try {
-          // Find user by email
           const result = await query(
-            'SELECT * FROM users WHERE email = $1',
+            "SELECT * FROM users WHERE email = $1",
             [credentials.email]
           )
 
           const user = result.rows[0]
+          if (!user) return null
 
-          if (!user) {
-            return null
-          }
-
-          // Verify password
           const isPasswordValid = await bcrypt.compare(
-            credentials.password as string,
+            credentials.password,
             user.password
           )
 
-          if (!isPasswordValid) {
-            return null
-          }
+          if (!isPasswordValid) return null
 
           return {
             id: user.id,
@@ -46,32 +39,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             image: user.image
           }
         } catch (error) {
-          console.error('Auth error:', error)
+          console.error("Auth error:", error)
           return null
         }
       }
     })
   ],
   session: {
-    strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60
   },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id
-      }
+    async jwt({ token, user }: { token: any; user?: { id: string } }) {
+      if (user) token.id = user.id
       return token
     },
-    async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.id as string
+    async session({ session, token }: { session: any; token: any }) {
+      if (token?.id && session.user) {
+        session.user.id = token.id
       }
       return session
     }
   },
   pages: {
-    signIn: '/auth/signin',
-    signUp: '/auth/signup',
+    signIn: "/auth/signin"
   }
-})
+}

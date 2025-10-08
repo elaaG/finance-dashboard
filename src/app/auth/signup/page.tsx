@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
-import bcrypt from 'bcryptjs'
 
 export default function SignUp() {
   const router = useRouter()
@@ -33,15 +32,7 @@ export default function SignUp() {
       return
     }
 
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters')
-      setLoading(false)
-      return
-    }
-
     try {
-      const hashedPassword = await bcrypt.hash(formData.password, 12)
-
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
@@ -50,19 +41,18 @@ export default function SignUp() {
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
-          password: hashedPassword,
+          password: formData.password,
         }),
       })
 
-      const data = await response.json()
-
       if (!response.ok) {
-        throw new Error(data.error || 'Registration failed')
+        throw new Error('Registration failed')
       }
 
-      router.push('/auth/signin?message=Account created successfully')
+      // Redirect to signin with success message
+      router.push('/auth/signin?message=Account created successfully (demo mode)')
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Registration failed')
+      setError('Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -78,6 +68,9 @@ export default function SignUp() {
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Create your account
           </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Demo mode: No real user creation
+          </p>
           <p className="mt-2 text-center text-sm text-gray-600">
             Or{' '}
             <Link href="/auth/signin" className="font-medium text-blue-600 hover:text-blue-500">
@@ -188,8 +181,14 @@ export default function SignUp() {
               disabled={loading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating account...' : 'Create account'}
+              {loading ? 'Creating account...' : 'Create account (Demo)'}
             </button>
+          </div>
+
+          <div className="text-center">
+            <p className="text-xs text-gray-500">
+              This is a demo. No real user account will be created.
+            </p>
           </div>
         </form>
       </div>
