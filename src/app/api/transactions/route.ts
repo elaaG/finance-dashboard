@@ -4,8 +4,15 @@ import {
   createTransaction, 
   getTransactionStats 
 } from '@/lib/services/transactionService'
+import { auth } from '@/lib/auth' 
 
 export async function GET(request: NextRequest) {
+  const session = await auth() 
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') as 'income' | 'expense' | undefined
@@ -13,7 +20,8 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate') || undefined
     const endDate = searchParams.get('endDate') || undefined
 
-    const transactions = await getTransactions({
+    
+    const transactions = await getTransactions(session.user.id, {
       type,
       category,
       startDate,
@@ -31,10 +39,15 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const session = await auth()
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const transactionData = await request.json()
     
-    // Validate required fields
     if (!transactionData.amount || !transactionData.description || !transactionData.category || !transactionData.type) {
       return NextResponse.json(
         { error: 'Missing required fields' },
@@ -42,7 +55,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const transaction = await createTransaction(transactionData)
+    const transaction = await createTransaction(
+      session.user.id,
+      { ...transactionData }
+    )
+
     return NextResponse.json(transaction, { status: 201 })
   } catch (error) {
     console.error('Failed to create transaction:', error)

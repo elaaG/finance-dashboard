@@ -1,7 +1,11 @@
 import { query } from '@/lib/database'
 import { Transaction } from '@/types'
 
+/**
+ * Get all transactions for a user, with optional filters.
+ */
 export async function getTransactions(
+  userId: string,
   filters?: { 
     type?: 'income' | 'expense';
     category?: string;
@@ -19,10 +23,11 @@ export async function getTransactions(
       date,
       created_at as "createdAt"
     FROM transactions 
-    WHERE 1=1
+    WHERE user_id = $1
   `
-  const params: any[] = []
-  let paramCount = 0
+
+  const params: any[] = [userId]
+  let paramCount = 1
 
   if (filters?.type) {
     paramCount++
@@ -54,13 +59,20 @@ export async function getTransactions(
   return result.rows
 }
 
-export async function createTransaction(transaction: Omit<Transaction, 'id'>): Promise<Transaction> {
+/**
+ * Create a new transaction for a specific user.
+ */
+export async function createTransaction(
+  userId: string,
+  transaction: Omit<Transaction, 'id'>
+): Promise<Transaction> {
   const sql = `
-    INSERT INTO transactions (amount, description, category, type, date)
-    VALUES ($1, $2, $3, $4, $5)
+    INSERT INTO transactions (user_id, amount, description, category, type, date)
+    VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING id, amount, description, category, type, date, created_at as "createdAt"
   `
   const params = [
+    userId,
     transaction.amount,
     transaction.description,
     transaction.category,
@@ -72,7 +84,14 @@ export async function createTransaction(transaction: Omit<Transaction, 'id'>): P
   return result.rows[0]
 }
 
-export async function updateTransaction(id: string, transaction: Partial<Transaction>): Promise<Transaction> {
+/**
+ * Update a user's transaction.
+ */
+export async function updateTransaction(
+  userId: string,
+  id: string,
+  transaction: Partial<Transaction>
+): Promise<Transaction> {
   const updates: string[] = []
   const params: any[] = []
   let paramCount = 0
@@ -111,16 +130,18 @@ export async function updateTransaction(id: string, transaction: Partial<Transac
     throw new Error('No fields to update')
   }
 
-  paramCount++
+  // Always update timestamp
   updates.push(`updated_at = CURRENT_TIMESTAMP`)
-  
+
   paramCount++
   params.push(id)
+  paramCount++
+  params.push(userId)
 
   const sql = `
     UPDATE transactions 
     SET ${updates.join(', ')}
-    WHERE id = $${paramCount}
+    WHERE id = $${paramCount - 1} AND user_id = $${paramCount}
     RETURNING id, amount, description, category, type, date, created_at as "createdAt"
   `
 
@@ -128,12 +149,18 @@ export async function updateTransaction(id: string, transaction: Partial<Transac
   return result.rows[0]
 }
 
-export async function deleteTransaction(id: string): Promise<void> {
-  const sql = 'DELETE FROM transactions WHERE id = $1'
-  await query(sql, [id])
+/**
+ * Delete a transaction (only if it belongs to the user).
+ */
+export async function deleteTransaction(userId: string, id: string): Promise<void> {
+  const sql = 'DELETE FROM transactions WHERE id = $1 AND user_id = $2'
+  await query(sql, [id, userId])
 }
 
-export async function getTransactionStats() {
+/**
+ * Get monthly statistics for a user's transactions.
+ */
+export async function getTransactionStats(userId: string) {
   const sql = `
     SELECT 
       type,
@@ -141,9 +168,10 @@ export async function getTransactionStats() {
       SUM(amount) as total,
       AVG(amount) as average
     FROM transactions 
-    WHERE date >= DATE_TRUNC('month', CURRENT_DATE)
+    WHERE user_id = $1
+      AND date >= DATE_TRUNC('month', CURRENT_DATE)
     GROUP BY type
   `
-  const result = await query(sql)
+  const result = await query(sql, [userId])
   return result.rows
 }
