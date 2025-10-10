@@ -2,7 +2,8 @@ import NextAuth from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { verifyPassword } from './services/userService'
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+
+const authConfig = {
   providers: [
     CredentialsProvider({
       name: 'credentials',
@@ -34,23 +35,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     })
   ],
   session: {
-    strategy: 'jwt',
+    strategy: 'jwt' as 'jwt',
   },
   pages: {
     signIn: '/auth/signin',
+    signUp: '/auth/signup',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user }: { token: any; user?: any }) {
       if (user) {
         token.id = user.id
       }
       return token
     },
-    async session({ session, token }) {
+    async session({ session, token }: { session: any; token: any }) {
       if (token && session.user) {
         session.user.id = token.id as string
       }
       return session
     }
   }
-})
+}
+
+// Export handlers directly (new NextAuth approach)
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig)
+
+// For backward compatibility, also export authConfig
+export const authOptions = authConfig
