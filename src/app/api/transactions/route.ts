@@ -1,70 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { 
-  getTransactions, 
-  createTransaction, 
-  getTransactionStats 
-} from '@/lib/services/transactionService'
-import { auth } from '@/lib/auth' 
+import { getTransactions } from '@/lib/services/transactionService'
+import { getCache, setCache } from '@/lib/redis'
+import { auth } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
-  const session = await auth() 
-
+  const session = await auth()
+  
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
     const { searchParams } = new URL(request.url)
-    const type = searchParams.get('type') as 'income' | 'expense' | undefined
-    const category = searchParams.get('category') || undefined
-    const startDate = searchParams.get('startDate') || undefined
-    const endDate = searchParams.get('endDate') || undefined
-
+    const type = ((): "income" | "expense" | undefined => {
+      const value = searchParams.get('type');
+      return value === "income" || value === "expense" ? value : undefined;
+    })();
+    const category = searchParams.get('category')
+    const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate')
     
-    const transactions = await getTransactions(session.user.id, {
-      type,
-      category,
-      startDate,
-      endDate
-    })
+    // Create cache key based on request parameters
+    const cacheKey = `transactions:${session.user.id}:${type}:${category}:${startDate}:${endDate}`
+    
+    // Try cache first
+    const cached = await getCache(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+    
+    // Ensure session.user.id is a string
+if (!session.user.id) {
+  return NextResponse.json({ error: "User ID is missing" }, { status: 400 });
+}
 
+// Ensure other parameters are either string or undefined
+const transactions = await getTransactions(session.user.id, {
+  type: type ?? undefined, 
+  category: category ?? undefined, 
+  startDate: startDate ?? undefined, 
+  endDate: endDate ?? undefined, 
+});
+
+
+return NextResponse.json(transactions);
+    // Cache for 1 minute
+    await setCache(cacheKey, transactions, 60)
+    
     return NextResponse.json(transactions)
   } catch (error) {
     console.error('Failed to fetch transactions:', error)
     return NextResponse.json(
       { error: 'Failed to fetch transactions' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function POST(request: NextRequest) {
-  const session = await auth()
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  try {
-    const transactionData = await request.json()
-    
-    if (!transactionData.amount || !transactionData.description || !transactionData.category || !transactionData.type) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
-    }
-
-    const transaction = await createTransaction(
-      session.user.id,
-      { ...transactionData }
-    )
-
-    return NextResponse.json(transaction, { status: 201 })
-  } catch (error) {
-    console.error('Failed to create transaction:', error)
-    return NextResponse.json(
-      { error: 'Failed to create transaction' },
       { status: 500 }
     )
   }
